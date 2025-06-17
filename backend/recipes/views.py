@@ -10,8 +10,12 @@ from rest_framework.response import Response
 from api.pagination import LimitPageNumberPagination
 
 from .filters import RecipeFilter
-from .models import Recipe
-from .serializers import RecipeCreateSerializer, RecipeReadSerializer
+from .models import Recipe, ShoppingCart
+from .serializers import (
+    RecipeCreateSerializer,
+    RecipeReadSerializer,
+    RecipeShortSerializer
+)
 from .permissions import IsAuthorOrReadOnly
 
 
@@ -29,7 +33,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         is_in_cart = self.request.query_params.get('is_in_shopping_cart')
         if is_in_cart in ['1', 'true', 'True'] and user.is_authenticated:
-            queryset = queryset.filter(shopping_cart=user)
+            queryset = queryset.filter(in_shopping_carts__user=user)
 
         is_favorited = self.request.query_params.get('is_favorited')
         if is_favorited in ['1', 'true', 'True'] and user.is_authenticated:
@@ -65,90 +69,61 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         return Response({"short-link": short_link}, status=status.HTTP_200_OK)
 
-    @action(detail=True,
-            methods=['post'],
+    @action(detail=True, methods=['post', 'delete'],
             permission_classes=[permissions.IsAuthenticated],
             url_path='shopping_cart')
-    def add_to_shopping_cart(self, request, pk=None):
+    def shopping_cart(self, request, pk=None):
         user = request.user
-        try:
-            recipe = self.get_object()
-        except Recipe.DoesNotExist:
-            return Response(
-                {"detail": "Рецепт не найден."},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        recipe = get_object_or_404(Recipe, pk=pk)
 
-        if recipe.shopping_cart.filter(id=user.id).exists():
-            return Response(
-                {"detail": "Рецепт уже в списке покупок."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if request.method == 'POST':
+            if ShoppingCart.objects.filter(user=user, recipe=recipe).exists():
+                return Response(
+                    {"detail": "Рецепт уже в корзине."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            ShoppingCart.objects.create(user=user, recipe=recipe)
+            serializer = RecipeShortSerializer(recipe)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        recipe.shopping_cart.add(user)
-        serializer_data = {
-            "id": recipe.id,
-            "name": recipe.name,
-            "image": request.build_absolute_uri(recipe.image.url),
-            "cooking_time": recipe.cooking_time
-        }
-        return Response(serializer_data, status=status.HTTP_201_CREATED)
-
-    @add_to_shopping_cart.mapping.delete
-    def remove_from_shopping_cart(self, request, pk=None):
-        user = request.user
-        try:
-            recipe = self.get_object()
-        except Recipe.DoesNotExist:
-            return Response(
-                {"detail": "Рецепт не найден."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        if not recipe.shopping_cart.filter(id=user.id).exists():
-            return Response(
-                {"detail": "Рецепт не в списке покупок."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        recipe.shopping_cart.remove(user)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        if request.method == 'DELETE':
+            cart_item = ShoppingCart.objects.filter(
+                user=user, recipe=recipe
+            ).first()
+            if not cart_item:
+                return Response(
+                    {"detail": "Рецепта нет в корзине."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            cart_item.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['get'],
             permission_classes=[permissions.IsAuthenticated],
             url_path='download_shopping_cart')
     def download_shopping_cart(self, request):
         user = request.user
-        recipes = user.cart_recipes.prefetch_related(
-            'ingredients',
-            'ingredients__recipes'
-        )
+        cart_items = user.shopping_cart.select_related('recipe').all()
 
-        ingredients_count = defaultdict(
-            lambda: {'name': '', 'measurement_unit': '', 'amount': 0}
-        )
+        ingredients = defaultdict(lambda: {'amount': 0, 'unit': ''})
 
-        for recipe in recipes:
-            for ri in recipe.recipeingredient_set.all():
-                ingredient = ri.ingredient
-                data = ingredients_count[ingredient.id]
-                data['name'] = ingredient.name
-                data['measurement_unit'] = ingredient.measurement_unit
-                data['amount'] += ri.amount
+        for item in cart_items:
+            for ri in item.recipe.recipeingredient_set.all():
+                ing = ri.ingredient
+                key = (ing.name, ing.measurement_unit)
+                ingredients[key]['amount'] += ri.amount
+                ingredients[key]['unit'] = ing.measurement_unit
 
-        lines = ['Список покупок:\n']
-        for ing in ingredients_count.values():
-            line = f"{ing['name']} - {ing['amount']}\n"
-            lines.append(line)
-
-        content = ''.join(lines)
+        lines = ["Список покупок:\n\n"]
+        for (name, unit), data in ingredients.items():
+            lines.append(f"▪ {name} — {data['amount']} {unit}\n")
 
         response = HttpResponse(
-            content,
+            "".join(lines),
             content_type='text/plain; charset=utf-8'
         )
         response['Content-Disposition'] = (
-            'attachment; '
+            'attachment;',
             'filename="shopping_list.txt"'
         )
         return response

@@ -26,5 +26,5 @@ class RecipeFilter(django_filters.FilterSet):
         if not user.is_authenticated:
             return queryset.none()
         if value:
-            return queryset.filter(shopping_cart=user)
+            return queryset.filter(in_shopping_carts__user=user)
         return queryset
