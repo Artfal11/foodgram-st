@@ -1,35 +1,13 @@
 from rest_framework import serializers
 from drf_extra_fields.fields import Base64ImageField
+
 from ingredients.models import Ingredient, RecipeIngredient
+from ingredients.serializers import (
+    IngredientInRecipeSerializer,
+    IngredientReadSerializer
+)
 from users.serializers import UserSerializer
 from .models import Recipe
-
-
-class IngredientInRecipeSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField()
-    amount = serializers.IntegerField(min_value=1)
-
-    class Meta:
-        model = RecipeIngredient
-        fields = ('id', 'amount')
-
-
-class IngredientReadSerializer(serializers.ModelSerializer):
-    amount = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Ingredient
-        fields = ('id', 'name', 'measurement_unit', 'amount')
-
-    def get_amount(self, obj):
-        recipe = self.context.get('recipe')
-        if recipe is None:
-            return None
-        recipe_ingredient = RecipeIngredient.objects.filter(
-            recipe=recipe,
-            ingredient=obj
-        ).first()
-        return recipe_ingredient.amount if recipe_ingredient else None
 
 
 class RecipeCreateSerializer(serializers.ModelSerializer):

@@ -74,7 +74,7 @@ class AvatarSerializer(serializers.ModelSerializer):
         fields = ('avatar',)
 
 
-class SetPasswordSerializer(serializers.Serializer):
+class ResetPasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True)
 

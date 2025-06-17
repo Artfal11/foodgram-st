@@ -1,7 +1,6 @@
 from django.core.paginator import Paginator
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, generics, viewsets
@@ -12,7 +11,7 @@ from .models import Follow
 from .serializers import (UserCreateSerializer,
                           UserSerializer,
                           AvatarSerializer,
-                          SetPasswordSerializer,
+                          ResetPasswordSerializer,
                           SubscriptionUserSerializer)
 
 User = get_user_model()
@@ -85,11 +84,11 @@ class UserAvatarUpdateDeleteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class SetPasswordView(APIView):
-    permission_classes = [IsAuthenticated]
+class ResetPasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = SetPasswordSerializer(
+        serializer = ResetPasswordSerializer(
             data=request.data,
             context={'request': request}
         )

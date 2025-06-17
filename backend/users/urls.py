@@ -6,7 +6,7 @@ from .views import (
     UserMeView,
     UserRetrieveView,
     UserAvatarUpdateDeleteView,
-    SetPasswordView,
+    ResetPasswordView,
     UserViewSet
 )
 
@@ -21,6 +21,6 @@ urlpatterns = [
          UserAvatarUpdateDeleteView.as_view(),
          name='user-avatar'),
     path('users/set_password/',
-         SetPasswordView.as_view(),
+         ResetPasswordView.as_view(),
          name='user-set-password'),
 ] + router.urls

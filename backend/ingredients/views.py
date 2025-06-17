@@ -1,14 +1,8 @@
-from rest_framework import viewsets, filters, permissions
+from rest_framework import viewsets, permissions
+
 from ingredients.models import Ingredient
 from .serializers import IngredientSerializer
-
-
-class IngredientNameFilter(filters.BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        name_param = request.query_params.get('name')
-        if name_param:
-            return queryset.filter(name__istartswith=name_param)
-        return queryset
+from .filters import IngredientNameFilter
 
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
